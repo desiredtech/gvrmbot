@@ -552,7 +552,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const safeLink = link.startsWith('http') ? link : `https://${link}`;
 
-            const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'release.png'), { name: 'release.png' });
+            const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'attached_assets', 'reinvites_1774985515891.png'), { name: 'reinvites.png' });
 
             const embed = new EmbedBuilder()
                 .setDescription(
@@ -564,7 +564,7 @@ client.on('interactionCreate', async (interaction) => {
                     `<:curvedline:1480604557930397838> Emergency Services: **${emergency}**`
                 )
                 .setColor(0xffffc5)
-                .setImage('attachment://release.png')
+                .setImage('attachment://reinvites.png')
                 .setTimestamp();
 
             await interaction.channel.send({
