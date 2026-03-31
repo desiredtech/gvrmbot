@@ -94,14 +94,17 @@ client.on('interactionCreate', async (interaction) => {
             .setImage('attachment://startup.png')
             .setTimestamp();
 
-        const message = await interaction.reply({
+        await interaction.deferReply({ ephemeral: true });
+
+        const message = await interaction.channel.send({
             content: `<@&1478874601445396725>`,
             embeds: [embed],
-            files: [attachment],
-            fetchReply: true
+            files: [attachment]
         });
 
         await message.react('<:checkmark:1480604103645331467>');
+
+        await interaction.editReply({ content: 'Session startup posted!', ephemeral: true });
     }
 });
 
