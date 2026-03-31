@@ -84,8 +84,8 @@ client.on('messageDelete', async (message) => {
     if (!message.guild || message.author?.bot) return;
 
     const embed = new EmbedBuilder()
-        .setTitle('🗑️ Message Deleted')
-        .setColor(0xff4444)
+        .setTitle('Message Deleted')
+        .setColor(0xffffc5)
         .addFields(
             { name: 'Author', value: message.author ? `${message.author} (${message.author.tag})` : 'Unknown', inline: true },
             { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
@@ -98,8 +98,8 @@ client.on('messageDelete', async (message) => {
 
 client.on('guildMemberAdd', async (member) => {
     const embed = new EmbedBuilder()
-        .setTitle('📥 Member Joined')
-        .setColor(0x44cc44)
+        .setTitle('Member Joined')
+        .setColor(0xffffc5)
         .addFields(
             { name: 'User', value: `${member.user} (${member.user.tag})`, inline: true },
             { name: 'Account Created', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true }
@@ -112,8 +112,8 @@ client.on('guildMemberAdd', async (member) => {
 
 client.on('guildMemberRemove', async (member) => {
     const embed = new EmbedBuilder()
-        .setTitle('📤 Member Left')
-        .setColor(0xff8800)
+        .setTitle('Member Left')
+        .setColor(0xffffc5)
         .addFields(
             { name: 'User', value: `${member.user} (${member.user.tag})`, inline: true },
             { name: 'Roles', value: member.roles.cache.filter(r => r.id !== member.guild.id).map(r => `<@&${r.id}>`).join(', ') || 'None' }
@@ -130,8 +130,8 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
     if (addedRoles.size > 0) {
         const embed = new EmbedBuilder()
-            .setTitle('✅ Role Added')
-            .setColor(0x44cc44)
+            .setTitle('Role Added')
+            .setColor(0xffffc5)
             .addFields(
                 { name: 'User', value: `${newMember.user} (${newMember.user.tag})`, inline: true },
                 { name: 'Role(s) Added', value: addedRoles.map(r => `<@&${r.id}>`).join(', ') }
@@ -143,8 +143,8 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
     if (removedRoles.size > 0) {
         const embed = new EmbedBuilder()
-            .setTitle('❌ Role Removed')
-            .setColor(0xff4444)
+            .setTitle('Role Removed')
+            .setColor(0xffffc5)
             .addFields(
                 { name: 'User', value: `${newMember.user} (${newMember.user.tag})`, inline: true },
                 { name: 'Role(s) Removed', value: removedRoles.map(r => `<@&${r.id}>`).join(', ') }
@@ -156,8 +156,8 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
     if (oldMember.nickname !== newMember.nickname) {
         const embed = new EmbedBuilder()
-            .setTitle('✏️ Nickname Changed')
-            .setColor(0x5588ff)
+            .setTitle('Nickname Changed')
+            .setColor(0xffffc5)
             .addFields(
                 { name: 'User', value: `${newMember.user} (${newMember.user.tag})`, inline: true },
                 { name: 'Before', value: oldMember.nickname || '*None*', inline: true },
@@ -171,8 +171,8 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
 client.on('guildBanAdd', async (ban) => {
     const embed = new EmbedBuilder()
-        .setTitle('🔨 Member Banned')
-        .setColor(0xcc0000)
+        .setTitle('Member Banned')
+        .setColor(0xffffc5)
         .addFields(
             { name: 'User', value: `${ban.user} (${ban.user.tag})`, inline: true },
             { name: 'Reason', value: ban.reason || 'No reason provided' }
@@ -185,8 +185,8 @@ client.on('guildBanAdd', async (ban) => {
 
 client.on('guildBanRemove', async (ban) => {
     const embed = new EmbedBuilder()
-        .setTitle('✅ Member Unbanned')
-        .setColor(0x44cc44)
+        .setTitle('Member Unbanned')
+        .setColor(0xffffc5)
         .addFields(
             { name: 'User', value: `${ban.user} (${ban.user.tag})`, inline: true }
         )
@@ -199,8 +199,8 @@ client.on('guildBanRemove', async (ban) => {
 client.on('channelCreate', async (channel) => {
     if (!channel.guild) return;
     const embed = new EmbedBuilder()
-        .setTitle('📁 Channel Created')
-        .setColor(0x44cc44)
+        .setTitle('Channel Created')
+        .setColor(0xffffc5)
         .addFields({ name: 'Channel', value: `<#${channel.id}> (${channel.name})` })
         .setTimestamp();
 
@@ -210,8 +210,8 @@ client.on('channelCreate', async (channel) => {
 client.on('channelDelete', async (channel) => {
     if (!channel.guild) return;
     const embed = new EmbedBuilder()
-        .setTitle('🗑️ Channel Deleted')
-        .setColor(0xff4444)
+        .setTitle('Channel Deleted')
+        .setColor(0xffffc5)
         .addFields({ name: 'Channel', value: `#${channel.name}` })
         .setTimestamp();
 
@@ -328,7 +328,7 @@ client.on('interactionCreate', async (interaction) => {
                         .setCustomId(`ea_link:placeholder`)
                         .setLabel('Link')
                         .setEmoji({ id: '1482744239518388260', name: 'link2' })
-                        .setStyle(ButtonStyle.Primary)
+                        .setStyle(ButtonStyle.Secondary)
                 )
             ]
         });
@@ -342,7 +342,7 @@ client.on('interactionCreate', async (interaction) => {
                         .setCustomId(`ea_link:${message.id}`)
                         .setLabel('Link')
                         .setEmoji({ id: '1482744239518388260', name: 'link2' })
-                        .setStyle(ButtonStyle.Primary)
+                        .setStyle(ButtonStyle.Secondary)
                 )
             ]
         });
