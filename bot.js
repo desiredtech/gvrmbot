@@ -552,7 +552,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const safeLink = link.startsWith('http') ? link : `https://${link}`;
 
-            const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'reinvites.png'), { name: 'reinvites.png' });
+            const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'attached_assets', 'reinvites_1774985515891.png'), { name: 'reinvites.png' });
 
             const embed = new EmbedBuilder()
                 .setDescription(
@@ -596,7 +596,7 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
         }
 
-        const statement = interaction.options.getString('statement').replace(/\\n/g, '\n');
+        const statement = interaction.options.getString('statement');
         const imageUrl = interaction.options.getString('image');
 
         await interaction.deferReply({ ephemeral: true });
