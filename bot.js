@@ -1,7 +1,9 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, PermissionFlagsBits } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const path = require('path');
 
 const TOKEN = process.env.DISCORD_TOKEN;
+
+if (!TOKEN) throw new Error('DISCORD_TOKEN environment variable is not set.');
 
 const client = new Client({
     intents: [
@@ -101,6 +103,10 @@ client.on('interactionCreate', async (interaction) => {
 
         await message.react('<:checkmark:1480604103645331467>');
     }
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled rejection:', err);
 });
 
 client.login(TOKEN);
