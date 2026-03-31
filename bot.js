@@ -129,14 +129,17 @@ client.on('messageReactionAdd', async (reaction, user) => {
     if (nonBotCount >= data.required) {
         data.triggered = true;
 
+        const prepAttachment = new AttachmentBuilder(path.join(__dirname, 'settingup.png'), { name: 'settingup.png' });
+
         const embed = new EmbedBuilder()
             .setDescription(
                 `**Greenville Roleplay Mission** — **Session Preparation**\n\n` +
                 `<:curvedline:1480604557930397838> The **reactions** needed for this session **to commence** has **met**! Please give the host **5–10** minutes to ensure this **session** goes smoothly.`
             )
-            .setColor(0xffffc5);
+            .setColor(0xffffc5)
+            .setImage('attachment://settingup.png');
 
-        await reaction.message.reply({ embeds: [embed] });
+        await reaction.message.reply({ embeds: [embed], files: [prepAttachment] });
     }
 });
 
