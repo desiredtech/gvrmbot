@@ -556,7 +556,7 @@ client.on('interactionCreate', async (interaction) => {
 
             const embed = new EmbedBuilder()
                 .setDescription(
-                    `<:car:1479984910377812192> Greenville Roleplay Mission — Session Re-invites! <:car:1479984910377812192>\n\n` +
+                    `<:car:1479984910377812192> **Greenville Roleplay Mission** — **Session Re-invites!** <:car:1479984910377812192>\n\n` +
                     `<:dasharrow:1480604353139179632> ${host} has now released their **roleplay session re-invites**. In order to join this roleplay session, you must click the button below. Prior to joining we ask that you read agree to every rule within <#1478874657481294017>, and your account privacy settings have to be set to __'everyone'__ allowing you to join the roleplay.\n\n\n` +
                     `<:dasharrow:1480604353139179632> **Session Informative:**\n` +
                     `<:curvedline:1480604557930397838> Fail-Roleplay Limit: **${frl}**\n` +
