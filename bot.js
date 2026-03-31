@@ -109,6 +109,13 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
+    try {
+        await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
+        console.log('Cleared global commands.');
+    } catch (error) {
+        console.error('Error clearing global commands:', error);
+    }
+
     for (const guild of client.guilds.cache.values()) {
         try {
             console.log(`Registering slash commands for guild: ${guild.name}`);
