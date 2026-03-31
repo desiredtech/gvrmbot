@@ -104,6 +104,66 @@ const commands = [
         .toJSON(),
 
     new SlashCommandBuilder()
+        .setName('reinvites')
+        .setDescription('Announce session re-invites for your roleplay session.')
+        .addStringOption(option =>
+            option
+                .setName('link')
+                .setDescription('The Roblox session link.')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName('frl')
+                .setDescription('Fail-Roleplay Limit')
+                .setRequired(true)
+                .addChoices(
+                    { name: '65', value: '65' },
+                    { name: '75', value: '75' },
+                    { name: '90', value: '90' }
+                )
+        )
+        .addStringOption(option =>
+            option
+                .setName('peacetime')
+                .setDescription('Peacetime Status')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Strict Peacetime', value: 'Strict Peacetime' },
+                    { name: 'Normal Peacetime', value: 'Normal Peacetime' },
+                    { name: 'Peacetime Off', value: 'Peacetime Off' }
+                )
+        )
+        .addStringOption(option =>
+            option
+                .setName('emergency')
+                .setDescription('Emergency Services')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Online', value: 'Online' },
+                    { name: 'Offline', value: 'Offline' }
+                )
+        )
+        .toJSON(),
+
+    new SlashCommandBuilder()
+        .setName('embed')
+        .setDescription('Send a custom embed message.')
+        .addStringOption(option =>
+            option
+                .setName('statement')
+                .setDescription('The text/statement to display in the embed.')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName('image')
+                .setDescription('A direct image URL to display in the embed.')
+                .setRequired(false)
+        )
+        .toJSON(),
+
+    new SlashCommandBuilder()
         .setName('regen')
         .setDescription('Announce that the session link has been regenerated.')
         .toJSON()
@@ -470,6 +530,101 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ content: 'Session release posted!', ephemeral: true });
         } catch (err) {
             console.error('Error in /release command:', err);
+            await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
+        }
+    }
+
+    if (interaction.commandName === 'reinvites') {
+        const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
+
+        if (!hasStaffRole) {
+            return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+        }
+
+        const link = interaction.options.getString('link');
+        const frl = interaction.options.getString('frl');
+        const peacetime = interaction.options.getString('peacetime');
+        const emergency = interaction.options.getString('emergency');
+        const host = interaction.user;
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const safeLink = link.startsWith('http') ? link : `https://${link}`;
+
+            const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'release.png'), { name: 'release.png' });
+
+            const embed = new EmbedBuilder()
+                .setDescription(
+                    `<:car:1479984910377812192> Greenville Roleplay Mission — Session Re-invites! <:car:1479984910377812192>\n\n` +
+                    `<:dasharrow:1480604353139179632> ${host} has now released their **roleplay session re-invites**. In order to join this roleplay session, you must click the button below. Prior to joining we ask that you read agree to every rule within <#1478874657481294017>, and your account privacy settings have to be set to __'everyone'__ allowing you to join the roleplay.\n\n\n` +
+                    `<:dasharrow:1480604353139179632> **Session Informative:**\n` +
+                    `<:curvedline:1480604557930397838> Fail-Roleplay Limit: **${frl}**\n` +
+                    `<:curvedline:1480604557930397838> Peacetime Status: **${peacetime}**\n` +
+                    `<:curvedline:1480604557930397838> Emergency Services: **${emergency}**`
+                )
+                .setColor(0xffffc5)
+                .setImage('attachment://release.png')
+                .setTimestamp();
+
+            await interaction.channel.send({
+                content: `<@&1478874601445396725>`,
+                embeds: [embed],
+                files: [reinvitesAttachment],
+                components: [
+                    new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setLabel('Link')
+                            .setEmoji({ id: '1482744239518388260', name: 'link2' })
+                            .setStyle(ButtonStyle.Link)
+                            .setURL(safeLink)
+                    )
+                ]
+            });
+
+            await interaction.editReply({ content: 'Session re-invites posted!', ephemeral: true });
+        } catch (err) {
+            console.error('Error in /reinvites command:', err);
+            await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
+        }
+    }
+
+    if (interaction.commandName === 'embed') {
+        const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
+
+        if (!hasStaffRole) {
+            return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+        }
+
+        const statement = interaction.options.getString('statement');
+        const imageUrl = interaction.options.getString('image');
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const embeds = [];
+
+            if (imageUrl) {
+                const imageEmbed = new EmbedBuilder()
+                    .setColor(0xffffc5)
+                    .setImage(imageUrl)
+                    .setTimestamp();
+
+                embeds.push(imageEmbed);
+            }
+
+            const statementEmbed = new EmbedBuilder()
+                .setDescription(statement)
+                .setColor(0xffffc5)
+                .setTimestamp();
+
+            embeds.push(statementEmbed);
+
+            await interaction.channel.send({ embeds });
+
+            await interaction.editReply({ content: 'Embed posted!', ephemeral: true });
+        } catch (err) {
+            console.error('Error in /embed command:', err);
             await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
         }
     }
