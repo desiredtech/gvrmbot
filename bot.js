@@ -5,7 +5,7 @@ const TOKEN = process.env.DISCORD_TOKEN;
 
 if (!TOKEN) throw new Error('DISCORD_TOKEN environment variable is not set.');
 
-const EA_CHANNEL_ID = '1478874724665659664';
+const LOG_CHANNEL_ID = '1478874724665659664';
 const EA_ACCESS_ROLES = ['1478874545715679486', '1478874597901467720', '1478874602997289002'];
 
 const client = new Client({
@@ -13,13 +13,24 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildMessageReactions
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildModeration,
+        GatewayIntentBits.MessageContent
     ],
     partials: [Partials.Message, Partials.Reaction, Partials.Channel]
 });
 
 const startupMessages = new Map();
 const eaLinks = new Map();
+
+async function sendLog(guild, embed) {
+    try {
+        const channel = await guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+        if (channel?.isTextBased()) await channel.send({ embeds: [embed] });
+    } catch (err) {
+        console.error('Failed to send log:', err);
+    }
+}
 
 const commands = [
     new SlashCommandBuilder()
@@ -66,6 +77,148 @@ client.once('clientReady', async () => {
         console.error('Error registering commands:', error);
     }
 });
+
+// ── Logging Events ────────────────────────────────────────────────────────────
+
+client.on('messageDelete', async (message) => {
+    if (!message.guild || message.author?.bot) return;
+
+    const embed = new EmbedBuilder()
+        .setTitle('🗑️ Message Deleted')
+        .setColor(0xff4444)
+        .addFields(
+            { name: 'Author', value: message.author ? `${message.author} (${message.author.tag})` : 'Unknown', inline: true },
+            { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
+            { name: 'Content', value: message.content || '*(no text content)*' }
+        )
+        .setTimestamp();
+
+    await sendLog(message.guild, embed);
+});
+
+client.on('guildMemberAdd', async (member) => {
+    const embed = new EmbedBuilder()
+        .setTitle('📥 Member Joined')
+        .setColor(0x44cc44)
+        .addFields(
+            { name: 'User', value: `${member.user} (${member.user.tag})`, inline: true },
+            { name: 'Account Created', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true }
+        )
+        .setThumbnail(member.user.displayAvatarURL())
+        .setTimestamp();
+
+    await sendLog(member.guild, embed);
+});
+
+client.on('guildMemberRemove', async (member) => {
+    const embed = new EmbedBuilder()
+        .setTitle('📤 Member Left')
+        .setColor(0xff8800)
+        .addFields(
+            { name: 'User', value: `${member.user} (${member.user.tag})`, inline: true },
+            { name: 'Roles', value: member.roles.cache.filter(r => r.id !== member.guild.id).map(r => `<@&${r.id}>`).join(', ') || 'None' }
+        )
+        .setThumbnail(member.user.displayAvatarURL())
+        .setTimestamp();
+
+    await sendLog(member.guild, embed);
+});
+
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    const addedRoles = newMember.roles.cache.filter(r => !oldMember.roles.cache.has(r.id));
+    const removedRoles = oldMember.roles.cache.filter(r => !newMember.roles.cache.has(r.id));
+
+    if (addedRoles.size > 0) {
+        const embed = new EmbedBuilder()
+            .setTitle('✅ Role Added')
+            .setColor(0x44cc44)
+            .addFields(
+                { name: 'User', value: `${newMember.user} (${newMember.user.tag})`, inline: true },
+                { name: 'Role(s) Added', value: addedRoles.map(r => `<@&${r.id}>`).join(', ') }
+            )
+            .setTimestamp();
+
+        await sendLog(newMember.guild, embed);
+    }
+
+    if (removedRoles.size > 0) {
+        const embed = new EmbedBuilder()
+            .setTitle('❌ Role Removed')
+            .setColor(0xff4444)
+            .addFields(
+                { name: 'User', value: `${newMember.user} (${newMember.user.tag})`, inline: true },
+                { name: 'Role(s) Removed', value: removedRoles.map(r => `<@&${r.id}>`).join(', ') }
+            )
+            .setTimestamp();
+
+        await sendLog(newMember.guild, embed);
+    }
+
+    if (oldMember.nickname !== newMember.nickname) {
+        const embed = new EmbedBuilder()
+            .setTitle('✏️ Nickname Changed')
+            .setColor(0x5588ff)
+            .addFields(
+                { name: 'User', value: `${newMember.user} (${newMember.user.tag})`, inline: true },
+                { name: 'Before', value: oldMember.nickname || '*None*', inline: true },
+                { name: 'After', value: newMember.nickname || '*None*', inline: true }
+            )
+            .setTimestamp();
+
+        await sendLog(newMember.guild, embed);
+    }
+});
+
+client.on('guildBanAdd', async (ban) => {
+    const embed = new EmbedBuilder()
+        .setTitle('🔨 Member Banned')
+        .setColor(0xcc0000)
+        .addFields(
+            { name: 'User', value: `${ban.user} (${ban.user.tag})`, inline: true },
+            { name: 'Reason', value: ban.reason || 'No reason provided' }
+        )
+        .setThumbnail(ban.user.displayAvatarURL())
+        .setTimestamp();
+
+    await sendLog(ban.guild, embed);
+});
+
+client.on('guildBanRemove', async (ban) => {
+    const embed = new EmbedBuilder()
+        .setTitle('✅ Member Unbanned')
+        .setColor(0x44cc44)
+        .addFields(
+            { name: 'User', value: `${ban.user} (${ban.user.tag})`, inline: true }
+        )
+        .setThumbnail(ban.user.displayAvatarURL())
+        .setTimestamp();
+
+    await sendLog(ban.guild, embed);
+});
+
+client.on('channelCreate', async (channel) => {
+    if (!channel.guild) return;
+    const embed = new EmbedBuilder()
+        .setTitle('📁 Channel Created')
+        .setColor(0x44cc44)
+        .addFields({ name: 'Channel', value: `<#${channel.id}> (${channel.name})` })
+        .setTimestamp();
+
+    await sendLog(channel.guild, embed);
+});
+
+client.on('channelDelete', async (channel) => {
+    if (!channel.guild) return;
+    const embed = new EmbedBuilder()
+        .setTitle('🗑️ Channel Deleted')
+        .setColor(0xff4444)
+        .addFields({ name: 'Channel', value: `#${channel.name}` })
+        .setTimestamp();
+
+    await sendLog(channel.guild, embed);
+});
+
+// ── Commands & Buttons ────────────────────────────────────────────────────────
 
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
@@ -154,11 +307,6 @@ client.on('interactionCreate', async (interaction) => {
 
         await interaction.deferReply({ ephemeral: true });
 
-        const channel = await interaction.guild.channels.fetch(EA_CHANNEL_ID).catch(() => null);
-        if (!channel?.isTextBased()) {
-            return interaction.editReply({ content: 'Early access channel not found.', ephemeral: true });
-        }
-
         const eaAttachment = new AttachmentBuilder(path.join(__dirname, 'ea.png'), { name: 'ea.png' });
 
         const embed = new EmbedBuilder()
@@ -170,7 +318,7 @@ client.on('interactionCreate', async (interaction) => {
             .setImage('attachment://ea.png')
             .setTimestamp();
 
-        const message = await channel.send({
+        const message = await interaction.channel.send({
             content: `<@&1478874545715679486> <@&1478874597901467720> <@&1478874602997289002>`,
             embeds: [embed],
             files: [eaAttachment],
@@ -202,6 +350,8 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply({ content: 'Early access posted!', ephemeral: true });
     }
 });
+
+// ── Reaction Tracking ─────────────────────────────────────────────────────────
 
 client.on('messageReactionAdd', async (reaction, user) => {
     if (user.bot) return;
