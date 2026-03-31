@@ -373,7 +373,10 @@ client.on('channelDelete', async (channel) => {
 client.on('interactionCreate', async (interaction) => {
 
     // ── Select Menu ───────────────────────────────────────────────────────────
-    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_type') {
+    const isSelectMenu = (typeof interaction.isStringSelectMenu === 'function' && interaction.isStringSelectMenu())
+        || (typeof interaction.isSelectMenu === 'function' && interaction.isSelectMenu());
+
+    if (isSelectMenu && interaction.customId === 'ticket_type') {
         const type = interaction.values[0];
         const user = interaction.user;
         const guild = interaction.guild;
