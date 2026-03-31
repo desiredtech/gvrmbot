@@ -1,4 +1,10 @@
-const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+    Client, GatewayIntentBits, Partials, REST, Routes,
+    SlashCommandBuilder, EmbedBuilder, AttachmentBuilder,
+    ActionRowBuilder, ButtonBuilder, ButtonStyle,
+    StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
+    PermissionFlagsBits, ChannelType
+} = require('discord.js');
 const path = require('path');
 
 const TOKEN = process.env.DISCORD_TOKEN;
