@@ -109,15 +109,29 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
+    for (const guild of client.guilds.cache.values()) {
+        try {
+            console.log(`Registering slash commands for guild: ${guild.name}`);
+            await rest.put(
+                Routes.applicationGuildCommands(client.user.id, guild.id),
+                { body: commands }
+            );
+            console.log(`Slash commands registered for guild: ${guild.name}`);
+        } catch (error) {
+            console.error(`Error registering commands for guild ${guild.name}:`, error);
+        }
+    }
+});
+
+client.on('guildCreate', async (guild) => {
     try {
-        console.log('Registering slash commands...');
         await rest.put(
-            Routes.applicationCommands(client.user.id),
+            Routes.applicationGuildCommands(client.user.id, guild.id),
             { body: commands }
         );
-        console.log('Slash commands registered successfully.');
+        console.log(`Slash commands registered for new guild: ${guild.name}`);
     } catch (error) {
-        console.error('Error registering commands:', error);
+        console.error(`Error registering commands for new guild ${guild.name}:`, error);
     }
 });
 
