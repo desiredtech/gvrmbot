@@ -1,9 +1,12 @@
-const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const path = require('path');
 
 const TOKEN = process.env.DISCORD_TOKEN;
 
 if (!TOKEN) throw new Error('DISCORD_TOKEN environment variable is not set.');
+
+const EA_CHANNEL_ID = '1478874724665659664';
+const EA_ACCESS_ROLES = ['1478874545715679486', '1478874597901467720', '1478874602997289002'];
 
 const client = new Client({
     intents: [
@@ -16,6 +19,7 @@ const client = new Client({
 });
 
 const startupMessages = new Map();
+const eaLinks = new Map();
 
 const commands = [
     new SlashCommandBuilder()
@@ -30,6 +34,17 @@ const commands = [
             option
                 .setName('reactions')
                 .setDescription('How many reactions are needed to commence the session?')
+                .setRequired(true)
+        )
+        .toJSON(),
+
+    new SlashCommandBuilder()
+        .setName('ea')
+        .setDescription('Release early access for your roleplay session.')
+        .addStringOption(option =>
+            option
+                .setName('link')
+                .setDescription('The Roblox session link for early access.')
                 .setRequired(true)
         )
         .toJSON()
@@ -53,6 +68,21 @@ client.once('clientReady', async () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
+    if (interaction.isButton()) {
+        if (interaction.customId.startsWith('ea_link:')) {
+            const messageId = interaction.customId.split(':')[1];
+            const link = eaLinks.get(messageId);
+
+            const hasAccess = interaction.member.roles.cache.some(role => EA_ACCESS_ROLES.includes(role.id));
+            if (!hasAccess) {
+                return interaction.reply({ content: 'You do not have permission to access this link.', ephemeral: true });
+            }
+
+            return interaction.reply({ content: link ?? 'Link unavailable.', ephemeral: true });
+        }
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === 'membercount') {
@@ -110,6 +140,66 @@ client.on('interactionCreate', async (interaction) => {
         startupMessages.set(message.id, { required: reactions, triggered: false });
 
         await interaction.editReply({ content: 'Session startup posted!', ephemeral: true });
+    }
+
+    if (interaction.commandName === 'ea') {
+        const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
+
+        if (!hasStaffRole) {
+            return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+        }
+
+        const link = interaction.options.getString('link');
+        const host = interaction.user;
+
+        await interaction.deferReply({ ephemeral: true });
+
+        const channel = await interaction.guild.channels.fetch(EA_CHANNEL_ID).catch(() => null);
+        if (!channel?.isTextBased()) {
+            return interaction.editReply({ content: 'Early access channel not found.', ephemeral: true });
+        }
+
+        const eaAttachment = new AttachmentBuilder(path.join(__dirname, 'ea.png'), { name: 'ea.png' });
+
+        const embed = new EmbedBuilder()
+            .setDescription(
+                `<:car:1479984910377812192>  **Greenville Roleplay Mission** — **Early Access!** <:car:1479984910377812192>\n\n` +
+                `<:curvedline:1480604557930397838> ${host} has released early access for their roleplay session. If you have access to the button below, you may begin joining now before the session link is closed. Once you're in-game, please park your vehicle and wait for further instructions from staff.`
+            )
+            .setColor(0xffffc5)
+            .setImage('attachment://ea.png')
+            .setTimestamp();
+
+        const message = await channel.send({
+            content: `<@&1478874545715679486> <@&1478874597901467720> <@&1478874602997289002>`,
+            embeds: [embed],
+            files: [eaAttachment],
+            components: [
+                new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`ea_link:placeholder`)
+                        .setLabel('Link')
+                        .setEmoji({ id: '1482744239518388260', name: 'link2' })
+                        .setStyle(ButtonStyle.Primary)
+                )
+            ]
+        });
+
+        eaLinks.set(message.id, link);
+
+        await message.edit({
+            components: [
+                new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`ea_link:${message.id}`)
+                        .setLabel('Link')
+                        .setEmoji({ id: '1482744239518388260', name: 'link2' })
+                        .setStyle(ButtonStyle.Primary)
+                )
+            ]
+        });
+
+        await interaction.editReply({ content: 'Early access posted!', ephemeral: true });
     }
 });
 
