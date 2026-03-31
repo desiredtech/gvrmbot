@@ -371,18 +371,226 @@ client.on('channelDelete', async (channel) => {
 // ── Commands & Buttons ────────────────────────────────────────────────────────
 
 client.on('interactionCreate', async (interaction) => {
+
+    // ── Select Menu ───────────────────────────────────────────────────────────
+    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_type') {
+        const type = interaction.values[0];
+        const user = interaction.user;
+        const guild = interaction.guild;
+
+        if (openTickets.has(user.id)) {
+            const existingChannelId = openTickets.get(user.id);
+            return interaction.reply({
+                content: `You already have an open ticket. Please head to <#${existingChannelId}>.`,
+                ephemeral: true
+            });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const staffRole = guild.roles.cache.find(r => r.name === 'Staff Team');
+
+            const permissionOverwrites = [
+                { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+                {
+                    id: user.id,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                }
+            ];
+
+            if (staffRole) {
+                permissionOverwrites.push({
+                    id: staffRole.id,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages]
+                });
+            }
+
+            const channelName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+
+            const ticketChannel = await guild.channels.create({
+                name: channelName,
+                type: ChannelType.GuildText,
+                permissionOverwrites
+            });
+
+            openTickets.set(user.id, ticketChannel.id);
+            ticketData.set(ticketChannel.id, { userId: user.id, type, openedAt: new Date() });
+
+            const isGeneral = type === 'general';
+            const formatText = isGeneral
+                ? `Welcome to **Mission** General Support, please be patient as one of our staff members reviews this ticket accordingly. Utilize the format below.\n\nUser: (your username)\nInquire: (describe your inquiry)\nDate: (today's date)`
+                : `Welcome to **Mission** Member Report, please be patient as one of our staff members reviews this ticket accordingly. Utilize the format below.\n\nUser: (your username)\nMember Report: (who you are reporting and why)\nEvidence: (provide your evidence)\nDate: (today's date)`;
+
+            const ticketEmbed = new EmbedBuilder()
+                .setDescription(formatText)
+                .setColor(0xffffc5);
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claim').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('ticket_close').setLabel('Close').setStyle(ButtonStyle.Danger)
+            );
+
+            await ticketChannel.send({
+                content: `${user}${staffRole ? ` | ${staffRole}` : ''}`,
+                embeds: [ticketEmbed],
+                components: [row]
+            });
+
+            await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
+        } catch (err) {
+            console.error('Error creating ticket:', err);
+            await interaction.editReply({ content: `Something went wrong: ${err.message}` });
+        }
+        return;
+    }
+
+    // ── Buttons ───────────────────────────────────────────────────────────────
     if (interaction.isButton()) {
+        // Early access link
         if (interaction.customId.startsWith('ea_link:')) {
             const messageId = interaction.customId.split(':')[1];
             const link = eaLinks.get(messageId);
-
             const hasAccess = interaction.member.roles.cache.some(role => EA_ACCESS_ROLES.includes(role.id));
-            if (!hasAccess) {
-                return interaction.reply({ content: 'You do not have permission to access this link.', ephemeral: true });
-            }
-
+            if (!hasAccess) return interaction.reply({ content: 'You do not have permission to access this link.', ephemeral: true });
             return interaction.reply({ content: link ?? 'Link unavailable.', ephemeral: true });
         }
+
+        // Ticket claim
+        if (interaction.customId === 'ticket_claim') {
+            const hasStaffRole = interaction.member.roles.cache.some(r => r.name === 'Staff Team');
+            if (!hasStaffRole) return interaction.reply({ content: 'Only Staff Team members can claim tickets.', ephemeral: true });
+
+            await interaction.deferUpdate();
+
+            const claimedEmbed = new EmbedBuilder()
+                .setDescription(`${interaction.user} has now **claimed** this ticket.`)
+                .setColor(0xffffc5);
+
+            const updatedRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claimed').setStyle(ButtonStyle.Secondary).setDisabled(true),
+                new ButtonBuilder().setCustomId('ticket_close').setLabel('Close').setStyle(ButtonStyle.Danger)
+            );
+
+            await interaction.message.edit({ components: [updatedRow] });
+            await interaction.channel.send({ embeds: [claimedEmbed] });
+            return;
+        }
+
+        // Ticket close — show confirmation
+        if (interaction.customId === 'ticket_close') {
+            const data = ticketData.get(interaction.channel.id);
+            if (!data) return interaction.reply({ content: 'This does not appear to be a ticket channel.', ephemeral: true });
+
+            const isOwner = interaction.user.id === data.userId;
+            const hasStaffRole = interaction.member.roles.cache.some(r => r.name === 'Staff Team');
+            if (!isOwner && !hasStaffRole) return interaction.reply({ content: 'You do not have permission to close this ticket.', ephemeral: true });
+
+            const confirmEmbed = new EmbedBuilder()
+                .setDescription('Are you sure you want to close this ticket? This action cannot be undone.')
+                .setColor(0xffffc5);
+
+            const confirmRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm Close').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary)
+            );
+
+            await interaction.reply({ embeds: [confirmEmbed], components: [confirmRow] });
+            return;
+        }
+
+        // Ticket close — cancel
+        if (interaction.customId === 'ticket_close_cancel') {
+            await interaction.message.delete().catch(() => null);
+            await interaction.deferUpdate().catch(() => null);
+            return;
+        }
+
+        // Ticket close — confirm
+        if (interaction.customId === 'ticket_close_confirm') {
+            const data = ticketData.get(interaction.channel.id);
+            if (!data) return interaction.reply({ content: 'Ticket data not found.', ephemeral: true });
+
+            await interaction.deferUpdate();
+
+            try {
+                await interaction.channel.send({
+                    embeds: [new EmbedBuilder().setDescription('This ticket is now being closed. Generating transcript...').setColor(0xffffc5)]
+                });
+
+                const messages = await fetchAllMessages(interaction.channel);
+                const closedAt = new Date();
+
+                const transcriptLines = [
+                    `Ticket Transcript`,
+                    `Channel: #${interaction.channel.name}`,
+                    `Type: ${data.type === 'general' ? 'General Support' : 'Member Report'}`,
+                    `Opened: ${data.openedAt.toUTCString()}`,
+                    `Closed: ${closedAt.toUTCString()}`,
+                    ``,
+                    `--- Messages ---`,
+                    ``
+                ];
+
+                for (const msg of messages) {
+                    const timestamp = new Date(msg.createdTimestamp).toUTCString();
+                    const content = msg.content || (msg.embeds.length ? '[embed]' : '[attachment]');
+                    transcriptLines.push(`[${timestamp}] ${msg.author.tag}: ${content}`);
+                }
+
+                const transcriptBuffer = Buffer.from(transcriptLines.join('\n'), 'utf-8');
+                const transcriptFile = new AttachmentBuilder(transcriptBuffer, { name: `transcript-${interaction.channel.name}.txt` });
+
+                const transcriptLogChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+                if (transcriptLogChannel?.isTextBased()) {
+                    const logEmbed = new EmbedBuilder()
+                        .setDescription(
+                            `**Ticket Closed**\n\n` +
+                            `Channel: #${interaction.channel.name}\n` +
+                            `Type: ${data.type === 'general' ? 'General Support' : 'Member Report'}\n` +
+                            `Opened by: <@${data.userId}>\n` +
+                            `Closed by: ${interaction.user}\n` +
+                            `Opened: ${data.openedAt.toUTCString()}\n` +
+                            `Closed: ${closedAt.toUTCString()}`
+                        )
+                        .setColor(0xffffc5);
+
+                    await transcriptLogChannel.send({ embeds: [logEmbed], files: [transcriptFile] });
+                }
+
+                try {
+                    const dmTranscriptFile = new AttachmentBuilder(transcriptBuffer, { name: `transcript-${interaction.channel.name}.txt` });
+                    const ticketUser = await client.users.fetch(data.userId);
+                    await ticketUser.send({
+                        embeds: [new EmbedBuilder()
+                            .setDescription(
+                                `Thank you for reaching out to **Greenville Roleplay Mission**!\n\n` +
+                                `We hope that your inquiry has been resolved to your satisfaction. Our staff team works diligently to ensure every member of the Greenville Roleplay Mission community receives the assistance they deserve in a timely and professional manner.\n\n` +
+                                `Your ticket has now been officially closed, and a full transcript of your conversation has been attached to this message for your records. Should you require any further assistance in the future, please do not hesitate to open another ticket — we are always happy to help.\n\n` +
+                                `We truly appreciate your patience and your continued support of the Greenville Roleplay Mission community. We hope to see you on the roads!`
+                            )
+                            .setColor(0xffffc5)
+                        ],
+                        files: [dmTranscriptFile]
+                    });
+                } catch {
+                    console.error('Could not DM ticket user — they may have DMs disabled.');
+                }
+
+                openTickets.delete(data.userId);
+                ticketData.delete(interaction.channel.id);
+
+                setTimeout(() => {
+                    interaction.channel.delete().catch(err => console.error('Failed to delete ticket channel:', err));
+                }, 3000);
+
+            } catch (err) {
+                console.error('Error closing ticket:', err);
+                await interaction.channel.send({ content: `Something went wrong while closing: ${err.message}` });
+            }
+            return;
+        }
+
         return;
     }
 
@@ -628,16 +836,14 @@ client.on('interactionCreate', async (interaction) => {
             if (imageUrl) {
                 const imageEmbed = new EmbedBuilder()
                     .setColor(0xffffc5)
-                    .setImage(imageUrl)
-                    .setTimestamp();
+                    .setImage(imageUrl);
 
                 embeds.push(imageEmbed);
             }
 
             const statementEmbed = new EmbedBuilder()
                 .setDescription(statement)
-                .setColor(0xffffc5)
-                .setTimestamp();
+                .setColor(0xffffc5);
 
             embeds.push(statementEmbed);
 
@@ -670,8 +876,7 @@ client.on('interactionCreate', async (interaction) => {
                     `<:curvedline:1480604557930397838> 2. **Member Report**: You must only create these if you want to report a staff member or civilian, however you must have valid evidence with a good reason for your report to make sure the member you are reporting is dealt with accordingly. Opening a petty report may result in a punishment.`
                 )
                 .setColor(0xffffc5)
-                .setImage('attachment://ticketsupport.png')
-                .setTimestamp();
+                .setImage('attachment://ticketsupport.png');
 
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('ticket_type')
