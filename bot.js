@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const path = require('path');
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -11,8 +11,11 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMessageReactions
-    ]
+    ],
+    partials: [Partials.Message, Partials.Reaction, Partials.Channel]
 });
+
+const startupMessages = new Map();
 
 const commands = [
     new SlashCommandBuilder()
@@ -104,7 +107,36 @@ client.on('interactionCreate', async (interaction) => {
 
         await message.react('<:checkmark:1480604103645331467>');
 
+        startupMessages.set(message.id, { required: reactions, triggered: false });
+
         await interaction.editReply({ content: 'Session startup posted!', ephemeral: true });
+    }
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.bot) return;
+
+    if (reaction.partial) {
+        try { await reaction.fetch(); } catch { return; }
+    }
+
+    const data = startupMessages.get(reaction.message.id);
+    if (!data || data.triggered) return;
+
+    if (reaction.emoji.toString() !== '<:checkmark:1480604103645331467>') return;
+
+    const nonBotCount = reaction.count - 1;
+    if (nonBotCount >= data.required) {
+        data.triggered = true;
+
+        const embed = new EmbedBuilder()
+            .setDescription(
+                `**Greenville Roleplay Mission** — **Session Preparation**\n\n` +
+                `<:curvedline:1480604557930397838> The **reactions** needed for this session **to commence** has **met**! Please give the host **5–10** minutes to ensure this **session** goes smoothly.`
+            )
+            .setColor(0xffffc5);
+
+        await reaction.message.reply({ embeds: [embed] });
     }
 });
 
