@@ -48,7 +48,7 @@ client.on('interactionCreate', async (interaction) => {
 
         const embed = new EmbedBuilder()
             .setTitle('Members')
-            .setDescription(`**${memberCount}**`)
+            .setDescription(`${memberCount}`)
             .setColor(0xffffc5)
             .setFooter({ text: 'Members' })
             .setTimestamp();
