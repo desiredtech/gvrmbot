@@ -429,37 +429,44 @@ client.on('interactionCreate', async (interaction) => {
 
         await interaction.deferReply({ ephemeral: true });
 
-        const releaseAttachment = new AttachmentBuilder(path.join(__dirname, 'release.png'), { name: 'release.png' });
+        try {
+            const safeLink = link.startsWith('http') ? link : `https://${link}`;
 
-        const embed = new EmbedBuilder()
-            .setDescription(
-                `<:car:1479984910377812192> **Greenville Roleplay Mission** — **Session Released!** <:car:1479984910377812192>\n\n` +
-                `<:dasharrow:1480604353139179632> ${host} has now officially **released their roleplay session**. In order to join this roleplay session, you must click the button below. Prior to joining we ask that you read agree to every rule within <#1478874657481294017>, and your account privacy settings have to be set to __'everyone'__ allowing you to join the roleplay.\n\n\n` +
-                `<:dasharrow:1480604353139179632> **Session Informative:**\n` +
-                `<:curvedline:1480604557930397838> Fail-Roleplay Limit: **${frl}**\n` +
-                `<:curvedline:1480604557930397838> Peacetime Status: **${peacetime}**\n` +
-                `<:curvedline:1480604557930397838> Emergency Services: **${emergency}**`
-            )
-            .setColor(0xffffc5)
-            .setImage('attachment://release.png')
-            .setTimestamp();
+            const releaseAttachment = new AttachmentBuilder(path.join(__dirname, 'release.png'), { name: 'release.png' });
 
-        await interaction.channel.send({
-            content: `<@&1478874601445396725>`,
-            embeds: [embed],
-            files: [releaseAttachment],
-            components: [
-                new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setLabel('Link')
-                        .setEmoji({ id: '1482744239518388260', name: 'link2' })
-                        .setStyle(ButtonStyle.Link)
-                        .setURL(link)
+            const embed = new EmbedBuilder()
+                .setDescription(
+                    `<:car:1479984910377812192> **Greenville Roleplay Mission** — **Session Released!** <:car:1479984910377812192>\n\n` +
+                    `<:dasharrow:1480604353139179632> ${host} has now officially **released their roleplay session**. In order to join this roleplay session, you must click the button below. Prior to joining we ask that you read agree to every rule within <#1478874657481294017>, and your account privacy settings have to be set to __'everyone'__ allowing you to join the roleplay.\n\n\n` +
+                    `<:dasharrow:1480604353139179632> **Session Informative:**\n` +
+                    `<:curvedline:1480604557930397838> Fail-Roleplay Limit: **${frl}**\n` +
+                    `<:curvedline:1480604557930397838> Peacetime Status: **${peacetime}**\n` +
+                    `<:curvedline:1480604557930397838> Emergency Services: **${emergency}**`
                 )
-            ]
-        });
+                .setColor(0xffffc5)
+                .setImage('attachment://release.png')
+                .setTimestamp();
 
-        await interaction.editReply({ content: 'Session release posted!', ephemeral: true });
+            await interaction.channel.send({
+                content: `<@&1478874601445396725>`,
+                embeds: [embed],
+                files: [releaseAttachment],
+                components: [
+                    new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setLabel('Link')
+                            .setEmoji({ id: '1482744239518388260', name: 'link2' })
+                            .setStyle(ButtonStyle.Link)
+                            .setURL(safeLink)
+                    )
+                ]
+            });
+
+            await interaction.editReply({ content: 'Session release posted!', ephemeral: true });
+        } catch (err) {
+            console.error('Error in /release command:', err);
+            await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
+        }
     }
 });
 
