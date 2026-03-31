@@ -552,7 +552,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const safeLink = link.startsWith('http') ? link : `https://${link}`;
 
-            const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'attached_assets', 'reinvites_1774985515891.png'), { name: 'reinvites.png' });
+            const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'reinvites.png'), { name: 'reinvites.png' });
 
             const embed = new EmbedBuilder()
                 .setDescription(
