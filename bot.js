@@ -101,6 +101,11 @@ const commands = [
                     { name: 'Offline', value: 'Offline' }
                 )
         )
+        .toJSON(),
+
+    new SlashCommandBuilder()
+        .setName('regen')
+        .setDescription('Announce that the session link has been regenerated.')
         .toJSON()
 ];
 
@@ -465,6 +470,32 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ content: 'Session release posted!', ephemeral: true });
         } catch (err) {
             console.error('Error in /release command:', err);
+            await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
+        }
+    }
+
+    if (interaction.commandName === 'regen') {
+        const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
+
+        if (!hasStaffRole) {
+            return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const embed = new EmbedBuilder()
+                .setDescription(
+                    `<:car:1479984910377812192> **Greenville Roleplay Mission** — **Link Regenerated!** <:car:1479984910377812192>\n\n` +
+                    `<:dasharrow:1480604353139179632> **This message is being sent due to this Greenville Roleplay Mission** roleplay session officially being closed and locked. You are now required to wait for the host to announce reinvites, if there is enough space within the session. — You may not ping the host for reinvites as it will result in a sanction if you do.`
+                )
+                .setColor(0xffffc5)
+                .setTimestamp();
+
+            await interaction.channel.send({ embeds: [embed] });
+            await interaction.editReply({ content: 'Regen message posted!', ephemeral: true });
+        } catch (err) {
+            console.error('Error in /regen command:', err);
             await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
         }
     }
