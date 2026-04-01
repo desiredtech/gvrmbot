@@ -3,7 +3,8 @@ const {
     SlashCommandBuilder, EmbedBuilder, AttachmentBuilder,
     ActionRowBuilder, ButtonBuilder, ButtonStyle,
     StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
-    PermissionFlagsBits, ChannelType
+    PermissionFlagsBits, ChannelType,
+    ModalBuilder, TextInputBuilder, TextInputStyle
 } = require('discord.js');
 const path = require('path');
 
@@ -12,6 +13,7 @@ const TOKEN = process.env.DISCORD_TOKEN;
 if (!TOKEN) throw new Error('DISCORD_TOKEN environment variable is not set.');
 
 const LOG_CHANNEL_ID = '1478874724665659664';
+const TRANSCRIPT_CHANNEL_ID = '1478874726234587146';
 const EA_ACCESS_ROLES = ['1478874545715679486', '1478874597901467720', '1478874602997289002'];
 
 const client = new Client({
@@ -55,20 +57,6 @@ async function fetchAllMessages(channel) {
     return messages.reverse();
 }
 
-async function askField(channel, userId, prompt) {
-    await channel.send({ embeds: [new EmbedBuilder().setDescription(prompt).setColor(0xffffc5)] });
-    try {
-        const collected = await channel.awaitMessages({
-            filter: m => m.author.id === userId,
-            max: 1,
-            time: 180_000,
-            errors: ['time']
-        });
-        return collected.first().content;
-    } catch {
-        return '*(no response)*';
-    }
-}
 
 const commands = [
     new SlashCommandBuilder()
@@ -406,17 +394,91 @@ client.on('interactionCreate', async (interaction) => {
 
     console.log(`[INTERACTION] type=${interaction.type} customId=${interaction.customId ?? 'none'} hasValues=${Array.isArray(interaction.values)} isCmd=${interaction.isChatInputCommand?.()}`);
 
-    // ── Select Menu ───────────────────────────────────────────────────────────
+    // ── Select Menu — show modal form ─────────────────────────────────────────
     if (interaction.customId === 'ticket_type' && Array.isArray(interaction.values)) {
-        console.log(`[TICKET] Select menu triggered by ${interaction.user?.tag}, value: ${interaction.values[0]}`);
         const type = interaction.values[0];
         const user = interaction.user;
-        const guild = interaction.guild;
 
         if (openTickets.has(user.id)) {
             const existingChannelId = openTickets.get(user.id);
             return interaction.reply({
                 content: `You already have an open ticket. Please head to <#${existingChannelId}>.`,
+                ephemeral: true
+            });
+        }
+
+        const isGeneral = type === 'general';
+
+        const modal = new ModalBuilder()
+            .setCustomId(`ticket_modal_${type}`)
+            .setTitle(isGeneral ? 'General Support' : 'Member Report');
+
+        const usernameInput = new TextInputBuilder()
+            .setCustomId('field_username')
+            .setLabel('Roblox Username')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+
+        if (isGeneral) {
+            const inquiryInput = new TextInputBuilder()
+                .setCustomId('field_inquiry')
+                .setLabel('Describe your inquiry')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            const dateInput = new TextInputBuilder()
+                .setCustomId('field_date')
+                .setLabel("Today's date")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(usernameInput),
+                new ActionRowBuilder().addComponents(inquiryInput),
+                new ActionRowBuilder().addComponents(dateInput)
+            );
+        } else {
+            const reportedInput = new TextInputBuilder()
+                .setCustomId('field_reported')
+                .setLabel('Who are you reporting and why?')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            const evidenceInput = new TextInputBuilder()
+                .setCustomId('field_evidence')
+                .setLabel('Evidence (links, screenshots, etc.)')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            const dateInput = new TextInputBuilder()
+                .setCustomId('field_date')
+                .setLabel("Today's date")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(usernameInput),
+                new ActionRowBuilder().addComponents(reportedInput),
+                new ActionRowBuilder().addComponents(evidenceInput),
+                new ActionRowBuilder().addComponents(dateInput)
+            );
+        }
+
+        await interaction.showModal(modal);
+        return;
+    }
+
+    // ── Modal Submit — create ticket channel ──────────────────────────────────
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
+        const type = interaction.customId.replace('ticket_modal_', '');
+        const user = interaction.user;
+        const guild = interaction.guild;
+        const isGeneral = type === 'general';
+
+        if (openTickets.has(user.id)) {
+            const existingChannelId = openTickets.get(user.id);
+            return interaction.reply({
+                content: `You already have an open ticket: <#${existingChannelId}>.`,
                 ephemeral: true
             });
         }
@@ -452,39 +514,24 @@ client.on('interactionCreate', async (interaction) => {
             openTickets.set(user.id, ticketChannel.id);
             ticketData.set(ticketChannel.id, { userId: user.id, type, openedAt: new Date() });
 
-            const isGeneral = type === 'general';
-
-            await ticketChannel.send({
-                content: `${user}${staffRole ? ` | ${staffRole}` : ''}`,
-                embeds: [new EmbedBuilder()
-                    .setDescription(
-                        isGeneral
-                            ? `Welcome to **Mission** General Support, <@${user.id}>! Please answer the following questions one at a time.`
-                            : `Welcome to **Mission** Member Report, <@${user.id}>! Please answer the following questions one at a time.`
-                    )
-                    .setColor(0xffffc5)
-                ]
-            });
-
-            await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
+            const username = interaction.fields.getTextInputValue('field_username');
 
             let summaryDesc;
-
             if (isGeneral) {
-                const username = await askField(ticketChannel, user.id, `**Question 1/3** — What is your **Roblox username**?`);
-                const inquiry = await askField(ticketChannel, user.id, `**Question 2/3** — Please describe your **inquiry**:`);
-                const date = await askField(ticketChannel, user.id, `**Question 3/3** — What is **today's date**?`);
+                const inquiry = interaction.fields.getTextInputValue('field_inquiry');
+                const date = interaction.fields.getTextInputValue('field_date');
                 summaryDesc = `**User:** ${username}\n**Inquiry:** ${inquiry}\n**Date:** ${date}`;
             } else {
-                const username = await askField(ticketChannel, user.id, `**Question 1/4** — What is your **Roblox username**?`);
-                const reported = await askField(ticketChannel, user.id, `**Question 2/4** — **Who are you reporting and why?**`);
-                const evidence = await askField(ticketChannel, user.id, `**Question 3/4** — Please provide your **evidence** (links, screenshots, etc.):`);
-                const date = await askField(ticketChannel, user.id, `**Question 4/4** — What is **today's date**?`);
+                const reported = interaction.fields.getTextInputValue('field_reported');
+                const evidence = interaction.fields.getTextInputValue('field_evidence');
+                const date = interaction.fields.getTextInputValue('field_date');
                 summaryDesc = `**User:** ${username}\n**Member Report:** ${reported}\n**Evidence:** ${evidence}\n**Date:** ${date}`;
             }
 
             const ticketEmbed = new EmbedBuilder()
-                .setDescription(`**Ticket Summary**\n\n${summaryDesc}`)
+                .setDescription(
+                    `${isGeneral ? 'Welcome to **Mission** General Support' : 'Welcome to **Mission** Member Report'}, <@${user.id}>! A staff member will be with you shortly.\n\n${summaryDesc}`
+                )
                 .setColor(0xffffc5);
 
             const row = new ActionRowBuilder().addComponents(
@@ -492,7 +539,13 @@ client.on('interactionCreate', async (interaction) => {
                 new ButtonBuilder().setCustomId('ticket_close').setLabel('Close').setStyle(ButtonStyle.Danger)
             );
 
-            await ticketChannel.send({ embeds: [ticketEmbed], components: [row] });
+            await ticketChannel.send({
+                content: `${user}${staffRole ? ` | ${staffRole}` : ''}`,
+                embeds: [ticketEmbed],
+                components: [row]
+            });
+
+            await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
         } catch (err) {
             console.error('[TICKET ERROR] Error creating ticket:', err);
             await interaction.editReply({ content: `Something went wrong: ${err.message}` });
