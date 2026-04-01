@@ -28,6 +28,8 @@ const client = new Client({
 
 const startupMessages = new Map();
 const eaLinks = new Map();
+const openTickets = new Map();
+const ticketData = new Map();
 
 async function sendLog(guild, embed) {
     try {
