@@ -510,9 +510,8 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             const ticketEmbed = new EmbedBuilder()
-                .setDescription(
-                    `${isGeneral ? 'Welcome to **Mission** General Support' : 'Welcome to **Mission** Member Report'}, <@${user.id}>! A staff member will be with you shortly.\n\n${summaryDesc}`
-                )
+                .setTitle(isGeneral ? 'General Support' : 'Member Report')
+                .setDescription(`Welcome <@${user.id}>! A staff member will be with you shortly.\n\n${summaryDesc}`)
                 .setColor(0xffffc5);
 
             const row = new ActionRowBuilder().addComponents(
@@ -552,6 +551,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferUpdate();
 
             const claimedEmbed = new EmbedBuilder()
+                .setTitle('Ticket Claimed')
                 .setDescription(`${interaction.user} has now **claimed** this ticket.`)
                 .setColor(0xffffc5);
 
@@ -575,6 +575,7 @@ client.on('interactionCreate', async (interaction) => {
             if (!isOwner && !hasStaffRole) return interaction.reply({ content: 'You do not have permission to close this ticket.', ephemeral: true });
 
             const confirmEmbed = new EmbedBuilder()
+                .setTitle('Close Ticket')
                 .setDescription('Are you sure you want to close this ticket? This action cannot be undone.')
                 .setColor(0xffffc5);
 
@@ -603,7 +604,7 @@ client.on('interactionCreate', async (interaction) => {
 
             try {
                 await interaction.channel.send({
-                    embeds: [new EmbedBuilder().setDescription('This ticket is now being closed. Generating transcript...').setColor(0xffffc5)]
+                    embeds: [new EmbedBuilder().setTitle('Closing Ticket').setDescription('This ticket is now being closed. Generating transcript...').setColor(0xffffc5)]
                 });
 
                 const messages = await fetchAllMessages(interaction.channel);
@@ -632,8 +633,8 @@ client.on('interactionCreate', async (interaction) => {
                 const transcriptLogChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
                 if (transcriptLogChannel?.isTextBased()) {
                     const logEmbed = new EmbedBuilder()
+                        .setTitle('Ticket Closed')
                         .setDescription(
-                            `**Ticket Closed**\n\n` +
                             `Channel: #${interaction.channel.name}\n` +
                             `Type: ${data.type === 'general' ? 'General Support' : 'Member Report'}\n` +
                             `Opened by: <@${data.userId}>\n` +
@@ -651,6 +652,7 @@ client.on('interactionCreate', async (interaction) => {
                     const ticketUser = await client.users.fetch(data.userId);
                     await ticketUser.send({
                         embeds: [new EmbedBuilder()
+                            .setTitle('Greenville Roleplay Mission — Ticket Closed')
                             .setDescription(
                                 `Thank you for reaching out to **Greenville Roleplay Mission**!\n\n` +
                                 `We hope that your inquiry has been resolved to your satisfaction. Our staff team works diligently to ensure every member of the Greenville Roleplay Mission community receives the assistance they deserve in a timely and professional manner.\n\n` +
@@ -717,8 +719,8 @@ client.on('interactionCreate', async (interaction) => {
         const attachment = new AttachmentBuilder(path.join(__dirname, 'startup.png'), { name: 'startup.png' });
 
         const embed = new EmbedBuilder()
+            .setTitle('Greenville Roleplay Mission — Session Startup!')
             .setDescription(
-                `<:car:1479984910377812192>  **Greenville Roleplay Mission** — **Session Startup!**  <:car:1479984910377812192>\n\n` +
                 `<:curvedline:1480604557930397838> ${host} is hosting a **Mission** roleplay session! In order to join this **immersive** session-roleplay, please ensure you have read & familiarised yourself within <#1478874657481294017> and follow these **guidelines** in the future. Please check to make sure your vehicle isn't a banned vehicle to avoid **further** moderation actions.\n\n` +
                 `<:curvedline:1480604557930397838> For this session to **commence**, we must achieve the goal of **${reactions}** reactions.`
             )
@@ -756,8 +758,8 @@ client.on('interactionCreate', async (interaction) => {
         const eaAttachment = new AttachmentBuilder(path.join(__dirname, 'ea.png'), { name: 'ea.png' });
 
         const embed = new EmbedBuilder()
+            .setTitle('Greenville Roleplay Mission — Early Access!')
             .setDescription(
-                `<:car:1479984910377812192>  **Greenville Roleplay Mission** — **Early Access!** <:car:1479984910377812192>\n\n` +
                 `<:curvedline:1480604557930397838> ${host} has released early access for their roleplay session. If you have access to the button below, you may begin joining now before the session link is closed. Once you're in-game, please park your vehicle and wait for further instructions from staff.`
             )
             .setColor(0xffffc5)
@@ -817,8 +819,8 @@ client.on('interactionCreate', async (interaction) => {
             const releaseAttachment = new AttachmentBuilder(path.join(__dirname, 'release.png'), { name: 'release.png' });
 
             const embed = new EmbedBuilder()
+                .setTitle('Greenville Roleplay Mission — Session Released!')
                 .setDescription(
-                    `<:car:1479984910377812192> **Greenville Roleplay Mission** — **Session Released!** <:car:1479984910377812192>\n\n` +
                     `<:dasharrow:1480604353139179632> ${host} has now officially **released their roleplay session**. In order to join this roleplay session, you must click the button below. Prior to joining we ask that you read agree to every rule within <#1478874657481294017>, and your account privacy settings have to be set to __'everyone'__ allowing you to join the roleplay.\n\n\n` +
                     `<:dasharrow:1480604353139179632> **Session Informative:**\n` +
                     `<:curvedline:1480604557930397838> Fail-Roleplay Limit: **${frl}**\n` +
@@ -872,8 +874,8 @@ client.on('interactionCreate', async (interaction) => {
             const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'reinvites.png'), { name: 'reinvites.png' });
 
             const embed = new EmbedBuilder()
+                .setTitle('Greenville Roleplay Mission — Session Re-invites!')
                 .setDescription(
-                    `<:car:1479984910377812192> Greenville Roleplay Mission — Session Re-invites! <:car:1479984910377812192>\n\n` +
                     `<:dasharrow:1480604353139179632> ${host} has now released their **roleplay session re-invites**. In order to join this roleplay session, you must click the button below. Prior to joining we ask that you read agree to every rule within <#1478874657481294017>, and your account privacy settings have to be set to __'everyone'__ allowing you to join the roleplay.\n\n\n` +
                     `<:dasharrow:1480604353139179632> **Session Informative:**\n` +
                     `<:curvedline:1480604557930397838> Fail-Roleplay Limit: **${frl}**\n` +
@@ -918,8 +920,8 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             const embed = new EmbedBuilder()
+                .setTitle('Greenville Roleplay Mission — Link Regenerated!')
                 .setDescription(
-                    `<:car:1479984910377812192> **Greenville Roleplay Mission** — **Link Regenerated!** <:car:1479984910377812192>\n\n` +
                     `<:dasharrow:1480604353139179632> **This message is being sent due to this Greenville Roleplay Mission** roleplay session officially being closed and locked. You are now required to wait for the host to announce reinvites, if there is enough space within the session. — You may not ping the host for reinvites as it will result in a sanction if you do.`
                 )
                 .setColor(0xffffc5)
@@ -955,8 +957,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
         const prepAttachment = new AttachmentBuilder(path.join(__dirname, 'settingup.png'), { name: 'settingup.png' });
 
         const embed = new EmbedBuilder()
+            .setTitle('Greenville Roleplay Mission — Session Preparation')
             .setDescription(
-                `**Greenville Roleplay Mission** — **Session Preparation**\n\n` +
                 `<:curvedline:1480604557930397838> The **reactions** needed for this session **to commence** has **met**! Please give the host **5–10** minutes to ensure this **session** goes smoothly.`
             )
             .setColor(0xffffc5)
