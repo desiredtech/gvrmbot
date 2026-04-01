@@ -372,11 +372,11 @@ client.on('channelDelete', async (channel) => {
 
 client.on('interactionCreate', async (interaction) => {
 
-    // ── Select Menu ───────────────────────────────────────────────────────────
-    const isSelectMenu = (typeof interaction.isStringSelectMenu === 'function' && interaction.isStringSelectMenu())
-        || (typeof interaction.isSelectMenu === 'function' && interaction.isSelectMenu());
+    console.log(`[INTERACTION] type=${interaction.type} customId=${interaction.customId ?? 'none'} hasValues=${Array.isArray(interaction.values)} isCmd=${interaction.isChatInputCommand?.()}`);
 
-    if (isSelectMenu && interaction.customId === 'ticket_type') {
+    // ── Select Menu ───────────────────────────────────────────────────────────
+    if (interaction.customId === 'ticket_type' && Array.isArray(interaction.values)) {
+        console.log(`[TICKET] Select menu triggered by ${interaction.user?.tag}, value: ${interaction.values[0]}`);
         const type = interaction.values[0];
         const user = interaction.user;
         const guild = interaction.guild;
@@ -413,7 +413,7 @@ client.on('interactionCreate', async (interaction) => {
 
             const ticketChannel = await guild.channels.create({
                 name: channelName,
-                type: ChannelType.GuildText,
+                type: ChannelType?.GuildText ?? 0,
                 permissionOverwrites
             });
 
@@ -442,7 +442,7 @@ client.on('interactionCreate', async (interaction) => {
 
             await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
         } catch (err) {
-            console.error('Error creating ticket:', err);
+            console.error('[TICKET ERROR] Error creating ticket:', err);
             await interaction.editReply({ content: `Something went wrong: ${err.message}` });
         }
         return;
