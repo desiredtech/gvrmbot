@@ -172,32 +172,12 @@ const commands = [
         )
         .toJSON(),
 
-    new SlashCommandBuilder()
-        .setName('embed')
-        .setDescription('Send a custom embed message.')
-        .addStringOption(option =>
-            option
-                .setName('statement')
-                .setDescription('The text/statement to display in the embed.')
-                .setRequired(true)
-        )
-        .addStringOption(option =>
-            option
-                .setName('image')
-                .setDescription('A direct image URL to display in the embed.')
-                .setRequired(false)
-        )
-        .toJSON(),
-
-    new SlashCommandBuilder()
-        .setName('ticketpanel')
-        .setDescription('Send the ticket support panel.')
-        .toJSON(),
 
     new SlashCommandBuilder()
         .setName('regen')
         .setDescription('Announce that the session link has been regenerated.')
-        .toJSON()
+        .toJSON(),
+
 ];
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -553,7 +533,6 @@ client.on('interactionCreate', async (interaction) => {
         }
         return;
     }
-
     // ── Buttons ───────────────────────────────────────────────────────────────
     if (interaction.isButton()) {
         // Early access link
@@ -927,94 +906,6 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    if (interaction.commandName === 'embed') {
-        const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
-
-        if (!hasStaffRole) {
-            return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
-        }
-
-        const statement = interaction.options.getString('statement');
-        const imageUrl = interaction.options.getString('image');
-
-        await interaction.deferReply({ ephemeral: true });
-
-        try {
-            const embeds = [];
-
-            if (imageUrl) {
-                const imageEmbed = new EmbedBuilder()
-                    .setColor(0xffffc5)
-                    .setImage(imageUrl);
-
-                embeds.push(imageEmbed);
-            }
-
-            const statementEmbed = new EmbedBuilder()
-                .setDescription(statement)
-                .setColor(0xffffc5);
-
-            embeds.push(statementEmbed);
-
-            await interaction.channel.send({ embeds });
-
-            await interaction.editReply({ content: 'Embed posted!', ephemeral: true });
-        } catch (err) {
-            console.error('Error in /embed command:', err);
-            await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
-        }
-    }
-
-    if (interaction.commandName === 'ticketpanel') {
-        const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
-
-        if (!hasStaffRole) {
-            return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
-        }
-
-        await interaction.deferReply({ ephemeral: true });
-
-        try {
-            const panelAttachment = new AttachmentBuilder(path.join(__dirname, 'ticketsupport.png'), { name: 'ticketsupport.png' });
-
-            const panelEmbed = new EmbedBuilder()
-                .setDescription(
-                    `<:car:1479984910377812192> **Greenville Roleplay Mission — Assistance** <:car:1479984910377812192>\n\n` +
-                    `<:car:1480604475910783016><:dasharrow:1480604353139179632> Welcome to the **Greenville Roleplay Mission** assistance center! Within this channel you may create a support ticket if you require assistance allowing all of your questions to be answered by one of our staff member within a short amount of time depending on the severity. — If you decide to abuse this system you will be punished, additionally if you do not respond within 24 hour(s) the ticket will simply be closed.\n\n` +
-                    `<:curvedline:1480604557930397838> 1. **General Support**: They are used if you have general questions that you would like to be answered. Additionally you may request a partnership with our community, or appeal your Infraction/Staff Strike.\n\n` +
-                    `<:curvedline:1480604557930397838> 2. **Member Report**: You must only create these if you want to report a staff member or civilian, however you must have valid evidence with a good reason for your report to make sure the member you are reporting is dealt with accordingly. Opening a petty report may result in a punishment.`
-                )
-                .setColor(0xffffc5)
-                .setImage('attachment://ticketsupport.png');
-
-            const selectMenu = new StringSelectMenuBuilder()
-                .setCustomId('ticket_type')
-                .setPlaceholder('Select a ticket type...')
-                .addOptions(
-                    new StringSelectMenuOptionBuilder()
-                        .setLabel('General Support')
-                        .setDescription('General questions, partnerships, or infraction appeals.')
-                        .setValue('general'),
-                    new StringSelectMenuOptionBuilder()
-                        .setLabel('Member Report')
-                        .setDescription('Report a staff member or civilian with evidence.')
-                        .setValue('report')
-                );
-
-            const row = new ActionRowBuilder().addComponents(selectMenu);
-
-            await interaction.channel.send({
-                embeds: [panelEmbed],
-                files: [panelAttachment],
-                components: [row]
-            });
-
-            await interaction.editReply({ content: 'Ticket panel posted!', ephemeral: true });
-        } catch (err) {
-            console.error('Error in /ticketpanel command:', err);
-            await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
-        }
-    }
 
     if (interaction.commandName === 'regen') {
         const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
