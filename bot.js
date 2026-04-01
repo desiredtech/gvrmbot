@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ActivityType } = require('discord.js');
 const path = require('path');
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -119,6 +119,8 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
+
+    client.user.setActivity('Greenville Roleplay Mission', { type: ActivityType.Watching });
 
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
@@ -327,7 +329,6 @@ client.on('interactionCreate', async (interaction) => {
             .setTitle('Members')
             .setDescription(`**${memberCount}**`)
             .setColor(0xffffc5)
-            .setFooter({ text: 'Members' })
             .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
@@ -530,6 +531,7 @@ client.on('interactionCreate', async (interaction) => {
             const concludedAttachment = new AttachmentBuilder(path.join(__dirname, 'concluded.png'), { name: 'concluded.png' });
 
             const embed = new EmbedBuilder()
+                .setTitle('Session Conclusion')
                 .setDescription(
                     `<:car:1479984910377812192> Greenville Roleplay Mission <:car:1479984910377812192>  — __**Session Conclusion!**__\n\n` +
                     `<:dasharrow:1480604353139179632>${host} **has now concluded their roleplay session.** We appreciate those who have attended this roleplay however, we encourage you to visit the next one being hosted soon!\n\n` +
