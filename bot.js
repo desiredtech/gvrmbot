@@ -40,6 +40,36 @@ async function sendLog(guild, embed) {
     }
 }
 
+async function fetchAllMessages(channel) {
+    const messages = [];
+    let lastId = null;
+    while (true) {
+        const options = { limit: 100 };
+        if (lastId) options.before = lastId;
+        const batch = await channel.messages.fetch(options);
+        if (batch.size === 0) break;
+        messages.push(...batch.values());
+        lastId = batch.last()?.id;
+        if (batch.size < 100) break;
+    }
+    return messages.reverse();
+}
+
+async function askField(channel, userId, prompt) {
+    await channel.send({ embeds: [new EmbedBuilder().setDescription(prompt).setColor(0xffffc5)] });
+    try {
+        const collected = await channel.awaitMessages({
+            filter: m => m.author.id === userId,
+            max: 1,
+            time: 180_000,
+            errors: ['time']
+        });
+        return collected.first().content;
+    } catch {
+        return '*(no response)*';
+    }
+}
+
 const commands = [
     new SlashCommandBuilder()
         .setName('membercount')
@@ -423,12 +453,38 @@ client.on('interactionCreate', async (interaction) => {
             ticketData.set(ticketChannel.id, { userId: user.id, type, openedAt: new Date() });
 
             const isGeneral = type === 'general';
-            const formatText = isGeneral
-                ? `Welcome to **Mission** General Support, please be patient as one of our staff members reviews this ticket accordingly. Utilize the format below.\n\nUser: (your username)\nInquire: (describe your inquiry)\nDate: (today's date)`
-                : `Welcome to **Mission** Member Report, please be patient as one of our staff members reviews this ticket accordingly. Utilize the format below.\n\nUser: (your username)\nMember Report: (who you are reporting and why)\nEvidence: (provide your evidence)\nDate: (today's date)`;
+
+            await ticketChannel.send({
+                content: `${user}${staffRole ? ` | ${staffRole}` : ''}`,
+                embeds: [new EmbedBuilder()
+                    .setDescription(
+                        isGeneral
+                            ? `Welcome to **Mission** General Support, <@${user.id}>! Please answer the following questions one at a time.`
+                            : `Welcome to **Mission** Member Report, <@${user.id}>! Please answer the following questions one at a time.`
+                    )
+                    .setColor(0xffffc5)
+                ]
+            });
+
+            await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
+
+            let summaryDesc;
+
+            if (isGeneral) {
+                const username = await askField(ticketChannel, user.id, `**Question 1/3** — What is your **Roblox username**?`);
+                const inquiry = await askField(ticketChannel, user.id, `**Question 2/3** — Please describe your **inquiry**:`);
+                const date = await askField(ticketChannel, user.id, `**Question 3/3** — What is **today's date**?`);
+                summaryDesc = `**User:** ${username}\n**Inquiry:** ${inquiry}\n**Date:** ${date}`;
+            } else {
+                const username = await askField(ticketChannel, user.id, `**Question 1/4** — What is your **Roblox username**?`);
+                const reported = await askField(ticketChannel, user.id, `**Question 2/4** — **Who are you reporting and why?**`);
+                const evidence = await askField(ticketChannel, user.id, `**Question 3/4** — Please provide your **evidence** (links, screenshots, etc.):`);
+                const date = await askField(ticketChannel, user.id, `**Question 4/4** — What is **today's date**?`);
+                summaryDesc = `**User:** ${username}\n**Member Report:** ${reported}\n**Evidence:** ${evidence}\n**Date:** ${date}`;
+            }
 
             const ticketEmbed = new EmbedBuilder()
-                .setDescription(formatText)
+                .setDescription(`**Ticket Summary**\n\n${summaryDesc}`)
                 .setColor(0xffffc5);
 
             const row = new ActionRowBuilder().addComponents(
@@ -436,13 +492,7 @@ client.on('interactionCreate', async (interaction) => {
                 new ButtonBuilder().setCustomId('ticket_close').setLabel('Close').setStyle(ButtonStyle.Danger)
             );
 
-            await ticketChannel.send({
-                content: `${user}${staffRole ? ` | ${staffRole}` : ''}`,
-                embeds: [ticketEmbed],
-                components: [row]
-            });
-
-            await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
+            await ticketChannel.send({ embeds: [ticketEmbed], components: [row] });
         } catch (err) {
             console.error('[TICKET ERROR] Error creating ticket:', err);
             await interaction.editReply({ content: `Something went wrong: ${err.message}` });
