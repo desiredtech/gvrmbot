@@ -531,9 +531,8 @@ client.on('interactionCreate', async (interaction) => {
             const concludedAttachment = new AttachmentBuilder(path.join(__dirname, 'concluded.png'), { name: 'concluded.png' });
 
             const embed = new EmbedBuilder()
-                .setTitle('Session Conclusion')
+                .setTitle('Greenville Roleplay Mission   — Session Conclusion!')
                 .setDescription(
-                    `<:car:1479984910377812192> Greenville Roleplay Mission <:car:1479984910377812192>  — __**Session Conclusion!**__\n\n` +
                     `<:dasharrow:1480604353139179632>${host} **has now concluded their roleplay session.** We appreciate those who have attended this roleplay however, we encourage you to visit the next one being hosted soon!\n\n` +
                     `<:curvedline:1480604557930397838>  **Want to report a user or got a question?** — head over to our <#1478874696433795304> and create an ticket, please ensure you have the required amount of proof before you open a ticket.\n\n` +
                     `<:dasharrow:1480604353139179632>Session Start Time: ${startTimeText}\n` +
