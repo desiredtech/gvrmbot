@@ -1,11 +1,4 @@
-const {
-    Client, GatewayIntentBits, Partials, REST, Routes,
-    SlashCommandBuilder, EmbedBuilder, AttachmentBuilder,
-    ActionRowBuilder, ButtonBuilder, ButtonStyle,
-    StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
-    PermissionFlagsBits, ChannelType,
-    ModalBuilder, TextInputBuilder, TextInputStyle
-} = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const path = require('path');
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -13,7 +6,6 @@ const TOKEN = process.env.DISCORD_TOKEN;
 if (!TOKEN) throw new Error('DISCORD_TOKEN environment variable is not set.');
 
 const LOG_CHANNEL_ID = '1478874724665659664';
-const TRANSCRIPT_CHANNEL_ID = '1478874726234587146';
 const EA_ACCESS_ROLES = ['1478874545715679486', '1478874597901467720', '1478874602997289002'];
 
 const client = new Client({
@@ -30,8 +22,7 @@ const client = new Client({
 
 const startupMessages = new Map();
 const eaLinks = new Map();
-const openTickets = new Map();
-const ticketData = new Map();
+const sessionStartTimes = new Map();
 
 async function sendLog(guild, embed) {
     try {
@@ -41,22 +32,6 @@ async function sendLog(guild, embed) {
         console.error('Failed to send log:', err);
     }
 }
-
-async function fetchAllMessages(channel) {
-    const messages = [];
-    let lastId = null;
-    while (true) {
-        const options = { limit: 100 };
-        if (lastId) options.before = lastId;
-        const batch = await channel.messages.fetch(options);
-        if (batch.size === 0) break;
-        messages.push(...batch.values());
-        lastId = batch.last()?.id;
-        if (batch.size < 100) break;
-    }
-    return messages.reverse();
-}
-
 
 const commands = [
     new SlashCommandBuilder()
@@ -130,52 +105,13 @@ const commands = [
         .toJSON(),
 
     new SlashCommandBuilder()
-        .setName('reinvites')
-        .setDescription('Announce session re-invites for your roleplay session.')
-        .addStringOption(option =>
-            option
-                .setName('link')
-                .setDescription('The Roblox session link.')
-                .setRequired(true)
-        )
-        .addStringOption(option =>
-            option
-                .setName('frl')
-                .setDescription('Fail-Roleplay Limit')
-                .setRequired(true)
-                .addChoices(
-                    { name: '65', value: '65' },
-                    { name: '75', value: '75' },
-                    { name: '90', value: '90' }
-                )
-        )
-        .addStringOption(option =>
-            option
-                .setName('peacetime')
-                .setDescription('Peacetime Status')
-                .setRequired(true)
-                .addChoices(
-                    { name: 'Strict Peacetime', value: 'Strict Peacetime' },
-                    { name: 'Normal Peacetime', value: 'Normal Peacetime' },
-                    { name: 'Peacetime Off', value: 'Peacetime Off' }
-                )
-        )
-        .addStringOption(option =>
-            option
-                .setName('emergency')
-                .setDescription('Emergency Services')
-                .setRequired(true)
-                .addChoices(
-                    { name: 'Online', value: 'Online' },
-                    { name: 'Offline', value: 'Offline' }
-                )
-        )
-        .toJSON(),
-
-
-    new SlashCommandBuilder()
         .setName('regen')
         .setDescription('Announce that the session link has been regenerated.')
+        .toJSON(),
+
+    new SlashCommandBuilder()
+        .setName('over')
+        .setDescription('Conclude the current GVRM roleplay session.')
         .toJSON()
 ];
 
@@ -191,17 +127,9 @@ client.once('clientReady', async () => {
         console.error('Error clearing global commands:', error);
     }
 
-    try {
-        await client.guilds.fetch();
-    } catch (error) {
-        console.error('Error fetching guilds:', error);
-    }
-
-    console.log(`Registering commands in ${client.guilds.cache.size} guild(s)...`);
-
     for (const guild of client.guilds.cache.values()) {
         try {
-            console.log(`Registering slash commands for guild: ${guild.name} (${guild.id})`);
+            console.log(`Registering slash commands for guild: ${guild.name}`);
             await rest.put(
                 Routes.applicationGuildCommands(client.user.id, guild.id),
                 { body: commands }
@@ -211,8 +139,6 @@ client.once('clientReady', async () => {
             console.error(`Error registering commands for guild ${guild.name}:`, error);
         }
     }
-
-    console.log(`Done registering ${commands.length} commands.`);
 });
 
 client.on('guildCreate', async (guild) => {
@@ -370,316 +296,18 @@ client.on('channelDelete', async (channel) => {
 // ── Commands & Buttons ────────────────────────────────────────────────────────
 
 client.on('interactionCreate', async (interaction) => {
-
-    console.log(`[INTERACTION] type=${interaction.type} customId=${interaction.customId ?? 'none'} hasValues=${Array.isArray(interaction.values)} isCmd=${interaction.isChatInputCommand?.()}`);
-
-    // ── Select Menu — show modal form ─────────────────────────────────────────
-    if (interaction.customId === 'ticket_type' && Array.isArray(interaction.values)) {
-        const type = interaction.values[0];
-        const user = interaction.user;
-
-        if (openTickets.has(user.id)) {
-            const existingChannelId = openTickets.get(user.id);
-            return interaction.reply({
-                content: `You already have an open ticket. Please head to <#${existingChannelId}>.`,
-                ephemeral: true
-            });
-        }
-
-        const isGeneral = type === 'general';
-
-        const modal = new ModalBuilder()
-            .setCustomId(`ticket_modal_${type}`)
-            .setTitle(isGeneral ? 'General Support' : 'Member Report');
-
-        const usernameInput = new TextInputBuilder()
-            .setCustomId('field_username')
-            .setLabel('Roblox Username')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-
-        if (isGeneral) {
-            const inquiryInput = new TextInputBuilder()
-                .setCustomId('field_inquiry')
-                .setLabel('Describe your inquiry')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true);
-
-            const dateInput = new TextInputBuilder()
-                .setCustomId('field_date')
-                .setLabel("Today's date")
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(usernameInput),
-                new ActionRowBuilder().addComponents(inquiryInput),
-                new ActionRowBuilder().addComponents(dateInput)
-            );
-        } else {
-            const reportedInput = new TextInputBuilder()
-                .setCustomId('field_reported')
-                .setLabel('Who are you reporting and why?')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true);
-
-            const evidenceInput = new TextInputBuilder()
-                .setCustomId('field_evidence')
-                .setLabel('Evidence (links, screenshots, etc.)')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true);
-
-            const dateInput = new TextInputBuilder()
-                .setCustomId('field_date')
-                .setLabel("Today's date")
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(usernameInput),
-                new ActionRowBuilder().addComponents(reportedInput),
-                new ActionRowBuilder().addComponents(evidenceInput),
-                new ActionRowBuilder().addComponents(dateInput)
-            );
-        }
-
-        await interaction.showModal(modal);
-        return;
-    }
-
-    // ── Modal Submit — create ticket channel ──────────────────────────────────
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
-        const type = interaction.customId.replace('ticket_modal_', '');
-        const user = interaction.user;
-        const guild = interaction.guild;
-        const isGeneral = type === 'general';
-
-        if (openTickets.has(user.id)) {
-            const existingChannelId = openTickets.get(user.id);
-            return interaction.reply({
-                content: `You already have an open ticket: <#${existingChannelId}>.`,
-                ephemeral: true
-            });
-        }
-
-        await interaction.deferReply({ ephemeral: true });
-
-        try {
-            const staffRole = guild.roles.cache.find(r => r.name === 'Staff Team');
-
-            const permissionOverwrites = [
-                { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-                {
-                    id: user.id,
-                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
-                }
-            ];
-
-            if (staffRole) {
-                permissionOverwrites.push({
-                    id: staffRole.id,
-                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages]
-                });
-            }
-
-            const channelName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-
-            const ticketChannel = await guild.channels.create({
-                name: channelName,
-                type: ChannelType?.GuildText ?? 0,
-                parent: '1478874647608168623',
-                permissionOverwrites
-            });
-
-            openTickets.set(user.id, ticketChannel.id);
-            ticketData.set(ticketChannel.id, { userId: user.id, type, openedAt: new Date() });
-
-            const username = interaction.fields.getTextInputValue('field_username');
-
-            let summaryDesc;
-            if (isGeneral) {
-                const inquiry = interaction.fields.getTextInputValue('field_inquiry');
-                const date = interaction.fields.getTextInputValue('field_date');
-                summaryDesc = `**User:** ${username}\n**Inquiry:** ${inquiry}\n**Date:** ${date}`;
-            } else {
-                const reported = interaction.fields.getTextInputValue('field_reported');
-                const evidence = interaction.fields.getTextInputValue('field_evidence');
-                const date = interaction.fields.getTextInputValue('field_date');
-                summaryDesc = `**User:** ${username}\n**Member Report:** ${reported}\n**Evidence:** ${evidence}\n**Date:** ${date}`;
-            }
-
-            const ticketEmbed = new EmbedBuilder()
-                .setTitle(isGeneral ? 'General Support' : 'Member Report')
-                .setDescription(`Welcome <@${user.id}>! A staff member will be with you shortly.\n\n${summaryDesc}`)
-                .setColor(0xffffc5);
-
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claim').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('ticket_close').setLabel('Close').setStyle(ButtonStyle.Danger)
-            );
-
-            await ticketChannel.send({
-                content: `${user}${staffRole ? ` | ${staffRole}` : ''}`,
-                embeds: [ticketEmbed],
-                components: [row]
-            });
-
-            await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
-        } catch (err) {
-            console.error('[TICKET ERROR] Error creating ticket:', err);
-            await interaction.editReply({ content: `Something went wrong: ${err.message}` });
-        }
-        return;
-    }
-    // ── Buttons ───────────────────────────────────────────────────────────────
     if (interaction.isButton()) {
-        // Early access link
         if (interaction.customId.startsWith('ea_link:')) {
             const messageId = interaction.customId.split(':')[1];
             const link = eaLinks.get(messageId);
+
             const hasAccess = interaction.member.roles.cache.some(role => EA_ACCESS_ROLES.includes(role.id));
-            if (!hasAccess) return interaction.reply({ content: 'You do not have permission to access this link.', ephemeral: true });
+            if (!hasAccess) {
+                return interaction.reply({ content: 'You do not have permission to access this link.', ephemeral: true });
+            }
+
             return interaction.reply({ content: link ?? 'Link unavailable.', ephemeral: true });
         }
-
-        // Ticket claim
-        if (interaction.customId === 'ticket_claim') {
-            const hasStaffRole = interaction.member.roles.cache.some(r => r.name === 'Staff Team');
-            if (!hasStaffRole) return interaction.reply({ content: 'Only Staff Team members can claim tickets.', ephemeral: true });
-
-            await interaction.deferUpdate();
-
-            const claimedEmbed = new EmbedBuilder()
-                .setTitle('Ticket Claimed')
-                .setDescription(`${interaction.user} has now **claimed** this ticket.`)
-                .setColor(0xffffc5);
-
-            const updatedRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claimed').setStyle(ButtonStyle.Secondary).setDisabled(true),
-                new ButtonBuilder().setCustomId('ticket_close').setLabel('Close').setStyle(ButtonStyle.Danger)
-            );
-
-            await interaction.message.edit({ components: [updatedRow] });
-            await interaction.channel.send({ embeds: [claimedEmbed] });
-            return;
-        }
-
-        // Ticket close — show confirmation
-        if (interaction.customId === 'ticket_close') {
-            const data = ticketData.get(interaction.channel.id);
-            if (!data) return interaction.reply({ content: 'This does not appear to be a ticket channel.', ephemeral: true });
-
-            const isOwner = interaction.user.id === data.userId;
-            const hasStaffRole = interaction.member.roles.cache.some(r => r.name === 'Staff Team');
-            if (!isOwner && !hasStaffRole) return interaction.reply({ content: 'You do not have permission to close this ticket.', ephemeral: true });
-
-            const confirmEmbed = new EmbedBuilder()
-                .setTitle('Close Ticket')
-                .setDescription('Are you sure you want to close this ticket? This action cannot be undone.')
-                .setColor(0xffffc5);
-
-            const confirmRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('ticket_close_confirm').setLabel('Confirm Close').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId('ticket_close_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary)
-            );
-
-            await interaction.reply({ embeds: [confirmEmbed], components: [confirmRow] });
-            return;
-        }
-
-        // Ticket close — cancel
-        if (interaction.customId === 'ticket_close_cancel') {
-            await interaction.message.delete().catch(() => null);
-            await interaction.deferUpdate().catch(() => null);
-            return;
-        }
-
-        // Ticket close — confirm
-        if (interaction.customId === 'ticket_close_confirm') {
-            const data = ticketData.get(interaction.channel.id);
-            if (!data) return interaction.reply({ content: 'Ticket data not found.', ephemeral: true });
-
-            await interaction.deferUpdate();
-
-            try {
-                await interaction.channel.send({
-                    embeds: [new EmbedBuilder().setTitle('Closing Ticket').setDescription('This ticket is now being closed. Generating transcript...').setColor(0xffffc5)]
-                });
-
-                const messages = await fetchAllMessages(interaction.channel);
-                const closedAt = new Date();
-
-                const transcriptLines = [
-                    `Ticket Transcript`,
-                    `Channel: #${interaction.channel.name}`,
-                    `Type: ${data.type === 'general' ? 'General Support' : 'Member Report'}`,
-                    `Opened: ${data.openedAt.toUTCString()}`,
-                    `Closed: ${closedAt.toUTCString()}`,
-                    ``,
-                    `--- Messages ---`,
-                    ``
-                ];
-
-                for (const msg of messages) {
-                    const timestamp = new Date(msg.createdTimestamp).toUTCString();
-                    const content = msg.content || (msg.embeds.length ? '[embed]' : '[attachment]');
-                    transcriptLines.push(`[${timestamp}] ${msg.author.tag}: ${content}`);
-                }
-
-                const transcriptBuffer = Buffer.from(transcriptLines.join('\n'), 'utf-8');
-                const transcriptFile = new AttachmentBuilder(transcriptBuffer, { name: `transcript-${interaction.channel.name}.txt` });
-
-                const transcriptLogChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
-                if (transcriptLogChannel?.isTextBased()) {
-                    const logEmbed = new EmbedBuilder()
-                        .setTitle('Ticket Closed')
-                        .setDescription(
-                            `Channel: #${interaction.channel.name}\n` +
-                            `Type: ${data.type === 'general' ? 'General Support' : 'Member Report'}\n` +
-                            `Opened by: <@${data.userId}>\n` +
-                            `Closed by: ${interaction.user}\n` +
-                            `Opened: ${data.openedAt.toUTCString()}\n` +
-                            `Closed: ${closedAt.toUTCString()}`
-                        )
-                        .setColor(0xffffc5);
-
-                    await transcriptLogChannel.send({ embeds: [logEmbed], files: [transcriptFile] });
-                }
-
-                try {
-                    const dmTranscriptFile = new AttachmentBuilder(transcriptBuffer, { name: `transcript-${interaction.channel.name}.txt` });
-                    const ticketUser = await client.users.fetch(data.userId);
-                    await ticketUser.send({
-                        embeds: [new EmbedBuilder()
-                            .setTitle('Greenville Roleplay Mission — Ticket Closed')
-                            .setDescription(
-                                `Thank you for reaching out to **Greenville Roleplay Mission**!\n\n` +
-                                `We hope that your inquiry has been resolved to your satisfaction. Our staff team works diligently to ensure every member of the Greenville Roleplay Mission community receives the assistance they deserve in a timely and professional manner.\n\n` +
-                                `Your ticket has now been officially closed, and a full transcript of your conversation has been attached to this message for your records. Should you require any further assistance in the future, please do not hesitate to open another ticket — we are always happy to help.\n\n` +
-                                `We truly appreciate your patience and your continued support of the Greenville Roleplay Mission community. We hope to see you on the roads!`
-                            )
-                            .setColor(0xffffc5)
-                        ],
-                        files: [dmTranscriptFile]
-                    });
-                } catch {
-                    console.error('Could not DM ticket user — they may have DMs disabled.');
-                }
-
-                openTickets.delete(data.userId);
-                ticketData.delete(interaction.channel.id);
-
-                setTimeout(() => {
-                    interaction.channel.delete().catch(err => console.error('Failed to delete ticket channel:', err));
-                }, 3000);
-
-            } catch (err) {
-                console.error('Error closing ticket:', err);
-                await interaction.channel.send({ content: `Something went wrong while closing: ${err.message}` });
-            }
-            return;
-        }
-
         return;
     }
 
@@ -718,8 +346,8 @@ client.on('interactionCreate', async (interaction) => {
         const attachment = new AttachmentBuilder(path.join(__dirname, 'startup.png'), { name: 'startup.png' });
 
         const embed = new EmbedBuilder()
-            .setTitle('Greenville Roleplay Mission — Session Startup!')
             .setDescription(
+                `<:car:1479984910377812192>  **Greenville Roleplay Mission** — **Session Startup!**  <:car:1479984910377812192>\n\n` +
                 `<:curvedline:1480604557930397838> ${host} is hosting a **Mission** roleplay session! In order to join this **immersive** session-roleplay, please ensure you have read & familiarised yourself within <#1478874657481294017> and follow these **guidelines** in the future. Please check to make sure your vehicle isn't a banned vehicle to avoid **further** moderation actions.\n\n` +
                 `<:curvedline:1480604557930397838> For this session to **commence**, we must achieve the goal of **${reactions}** reactions.`
             )
@@ -737,7 +365,9 @@ client.on('interactionCreate', async (interaction) => {
 
         await message.react('<:checkmark:1480604103645331467>');
 
+        const startupTimestamp = Math.floor(Date.now() / 1000);
         startupMessages.set(message.id, { required: reactions, triggered: false });
+        sessionStartTimes.set(interaction.guildId, startupTimestamp);
 
         await interaction.editReply({ content: 'Session startup posted!', ephemeral: true });
     }
@@ -757,8 +387,8 @@ client.on('interactionCreate', async (interaction) => {
         const eaAttachment = new AttachmentBuilder(path.join(__dirname, 'ea.png'), { name: 'ea.png' });
 
         const embed = new EmbedBuilder()
-            .setTitle('Greenville Roleplay Mission — Early Access!')
             .setDescription(
+                `<:car:1479984910377812192>  **Greenville Roleplay Mission** — **Early Access!** <:car:1479984910377812192>\n\n` +
                 `<:curvedline:1480604557930397838> ${host} has released early access for their roleplay session. If you have access to the button below, you may begin joining now before the session link is closed. Once you're in-game, please park your vehicle and wait for further instructions from staff.`
             )
             .setColor(0xffffc5)
@@ -818,8 +448,8 @@ client.on('interactionCreate', async (interaction) => {
             const releaseAttachment = new AttachmentBuilder(path.join(__dirname, 'release.png'), { name: 'release.png' });
 
             const embed = new EmbedBuilder()
-                .setTitle('Greenville Roleplay Mission — Session Released!')
                 .setDescription(
+                    `<:car:1479984910377812192> **Greenville Roleplay Mission** — **Session Released!** <:car:1479984910377812192>\n\n` +
                     `<:dasharrow:1480604353139179632> ${host} has now officially **released their roleplay session**. In order to join this roleplay session, you must click the button below. Prior to joining we ask that you read agree to every rule within <#1478874657481294017>, and your account privacy settings have to be set to __'everyone'__ allowing you to join the roleplay.\n\n\n` +
                     `<:dasharrow:1480604353139179632> **Session Informative:**\n` +
                     `<:curvedline:1480604557930397838> Fail-Roleplay Limit: **${frl}**\n` +
@@ -852,62 +482,6 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    if (interaction.commandName === 'reinvites') {
-        const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
-
-        if (!hasStaffRole) {
-            return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
-        }
-
-        const link = interaction.options.getString('link');
-        const frl = interaction.options.getString('frl');
-        const peacetime = interaction.options.getString('peacetime');
-        const emergency = interaction.options.getString('emergency');
-        const host = interaction.user;
-
-        await interaction.deferReply({ ephemeral: true });
-
-        try {
-            const safeLink = link.startsWith('http') ? link : `https://${link}`;
-
-            const reinvitesAttachment = new AttachmentBuilder(path.join(__dirname, 'reinvites.png'), { name: 'reinvites.png' });
-
-            const embed = new EmbedBuilder()
-                .setTitle('Greenville Roleplay Mission — Session Re-invites!')
-                .setDescription(
-                    `<:dasharrow:1480604353139179632> ${host} has now released their **roleplay session re-invites**. In order to join this roleplay session, you must click the button below. Prior to joining we ask that you read agree to every rule within <#1478874657481294017>, and your account privacy settings have to be set to __'everyone'__ allowing you to join the roleplay.\n\n\n` +
-                    `<:dasharrow:1480604353139179632> **Session Informative:**\n` +
-                    `<:curvedline:1480604557930397838> Fail-Roleplay Limit: **${frl}**\n` +
-                    `<:curvedline:1480604557930397838> Peacetime Status: **${peacetime}**\n` +
-                    `<:curvedline:1480604557930397838> Emergency Services: **${emergency}**`
-                )
-                .setColor(0xffffc5)
-                .setImage('attachment://reinvites.png')
-                .setTimestamp();
-
-            await interaction.channel.send({
-                content: `<@&1478874601445396725>`,
-                embeds: [embed],
-                files: [reinvitesAttachment],
-                components: [
-                    new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setLabel('Link')
-                            .setEmoji({ id: '1482744239518388260', name: 'link2' })
-                            .setStyle(ButtonStyle.Link)
-                            .setURL(safeLink)
-                    )
-                ]
-            });
-
-            await interaction.editReply({ content: 'Session re-invites posted!', ephemeral: true });
-        } catch (err) {
-            console.error('Error in /reinvites command:', err);
-            await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
-        }
-    }
-
-
     if (interaction.commandName === 'regen') {
         const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
 
@@ -919,8 +493,8 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             const embed = new EmbedBuilder()
-                .setTitle('Greenville Roleplay Mission — Link Regenerated!')
                 .setDescription(
+                    `<:car:1479984910377812192> **Greenville Roleplay Mission** — **Link Regenerated!** <:car:1479984910377812192>\n\n` +
                     `<:dasharrow:1480604353139179632> **This message is being sent due to this Greenville Roleplay Mission** roleplay session officially being closed and locked. You are now required to wait for the host to announce reinvites, if there is enough space within the session. — You may not ping the host for reinvites as it will result in a sanction if you do.`
                 )
                 .setColor(0xffffc5)
@@ -934,6 +508,49 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    if (interaction.commandName === 'over') {
+        const hasStaffRole = interaction.member.roles.cache.some(role => role.name === 'Staff Team');
+
+        if (!hasStaffRole) {
+            return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const host = interaction.user;
+            const endTimestamp = Math.floor(Date.now() / 1000);
+            const startTimestamp = sessionStartTimes.get(interaction.guildId);
+
+            const startTimeText = startTimestamp
+                ? `<t:${startTimestamp}:F>`
+                : '*Session start time unavailable*';
+            const endTimeText = `<t:${endTimestamp}:F>`;
+
+            const concludedAttachment = new AttachmentBuilder(path.join(__dirname, 'concluded.png'), { name: 'concluded.png' });
+
+            const embed = new EmbedBuilder()
+                .setDescription(
+                    `<:car:1479984910377812192> Greenville Roleplay Mission <:car:1479984910377812192>  — __**Session Conclusion!**__\n\n` +
+                    `<:dasharrow:1480604353139179632>${host} **has now concluded their roleplay session.** We appreciate those who have attended this roleplay however, we encourage you to visit the next one being hosted soon!\n\n` +
+                    `<:curvedline:1480604557930397838>  **Want to report a user or got a question?** — head over to our <#1478874696433795304> and create an ticket, please ensure you have the required amount of proof before you open a ticket.\n\n` +
+                    `<:dasharrow:1480604353139179632>Session Start Time: ${startTimeText}\n` +
+                    `<:dasharrow:1480604353139179632>Session End Time: ${endTimeText}`
+                )
+                .setColor(0xffffc5)
+                .setImage('attachment://concluded.png')
+                .setTimestamp();
+
+            await interaction.channel.send({ embeds: [embed], files: [concludedAttachment] });
+
+            sessionStartTimes.delete(interaction.guildId);
+
+            await interaction.editReply({ content: 'Session conclusion posted!', ephemeral: true });
+        } catch (err) {
+            console.error('Error in /over command:', err);
+            await interaction.editReply({ content: `Something went wrong: ${err.message}`, ephemeral: true });
+        }
+    }
 });
 
 // ── Reaction Tracking ─────────────────────────────────────────────────────────
@@ -957,8 +574,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
         const prepAttachment = new AttachmentBuilder(path.join(__dirname, 'settingup.png'), { name: 'settingup.png' });
 
         const embed = new EmbedBuilder()
-            .setTitle('Greenville Roleplay Mission — Session Preparation')
             .setDescription(
+                `**Greenville Roleplay Mission** — **Session Preparation**\n\n` +
                 `<:curvedline:1480604557930397838> The **reactions** needed for this session **to commence** has **met**! Please give the host **5–10** minutes to ensure this **session** goes smoothly.`
             )
             .setColor(0xffffc5)
